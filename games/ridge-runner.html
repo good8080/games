@@ -164,7 +164,7 @@
     </section>
 
     <div class="instructions">
-      <span><strong>D</strong> pedal · <strong>Space / Up</strong> jump · <strong>Left / Right</strong> tilt in the air</span>
+      <span><strong>D / Right</strong> pedal · <strong>Space / Up</strong> jump · <strong>Left / Right</strong> tilt in the air</span>
       <a class="back-link" href="../index.html">← Back to games</a>
     </div>
   </main>
@@ -211,14 +211,14 @@
         x: 45,
         y: groundAt(45) - wheelRadius,
         verticalSpeed: 0,
-        speed: 175,
+        speed: 360,
         angle: 0,
         angularSpeed: 0,
         state: "ready",
         airTime: 0,
         bestAirTime: 0,
         message: "READY TO RIDE?",
-        submessage: "Pedal into the first giant gap!",
+        submessage: "Hold PEDAL for speed. Ramps launch you across the gaps!",
         particles: []
       };
       updateHud();
@@ -235,7 +235,7 @@
       if (game.state !== "playing" || groundAt(game.x) === null) return;
       const ground = groundAt(game.x);
       if (game.y + wheelRadius < ground - 3) return;
-      game.verticalSpeed = -480;
+      game.verticalSpeed = -700;
       game.y -= 4;
       game.airTime = 0;
     }
@@ -249,18 +249,18 @@
 
     function update(delta) {
       if (game.state !== "playing") return;
-      const pedaling = keys.has("d") || keys.has("D") || pedalButton.classList.contains("is-held");
+      const pedaling = keys.has("ArrowRight") || keys.has("d") || keys.has("D") || pedalButton.classList.contains("is-held");
       const leaningLeft = keys.has("ArrowLeft") || keys.has("a") || keys.has("A");
       const leaningRight = keys.has("ArrowRight");
 
-      game.speed += (pedaling ? 190 : -32) * delta;
-      game.speed = Math.max(130, Math.min(450, game.speed));
+      game.speed += (pedaling ? 440 : -12) * delta;
+      game.speed = Math.max(320, Math.min(700, game.speed));
       const previousX = game.x;
       game.x += game.speed * delta;
 
       if (groundAt(game.x) === null) {
         if (groundAt(previousX) !== null && game.verticalSpeed === 0) {
-          game.verticalSpeed = -480;
+          game.verticalSpeed = -730;
           game.y -= 4;
         }
         game.airTime += delta;
@@ -279,15 +279,11 @@
           game.angle += game.angularSpeed * delta;
         } else {
           game.y = ground - wheelRadius;
-          if (game.verticalSpeed > 650) {
-            crash("The landing was too rough. Try landing with your wheels level.");
-          } else {
-            if (game.airTime > 0.3) game.bestAirTime = Math.max(game.bestAirTime, game.airTime);
-            game.airTime = 0;
-            game.verticalSpeed = 0;
-            game.angularSpeed = 0;
-            game.angle *= .45;
-          }
+          if (game.airTime > 0.3) game.bestAirTime = Math.max(game.bestAirTime, game.airTime);
+          game.airTime = 0;
+          game.verticalSpeed = 0;
+          game.angularSpeed = 0;
+          game.angle *= .45;
         }
       }
 
@@ -347,22 +343,62 @@
         const right = section.end - cameraX;
         if (right < -50 || left > 1010) continue;
         if (section.gap) {
-          ctx.fillStyle = "#273a32";
+          const lipLeft = groundAt(section.start - 1) ?? 350;
+          const lipRight = groundAt(section.end + 1) ?? 350;
+          const bottom = ctx.createLinearGradient(0, 410, 0, 540);
+          bottom.addColorStop(0, "#60766a");
+          bottom.addColorStop(.52, "#435f5d");
+          bottom.addColorStop(1, "#304a50");
           ctx.beginPath();
-          ctx.moveTo(left, 416);
-          ctx.lineTo(left + 15, 454);
-          ctx.lineTo(left + 35, 428);
-          ctx.lineTo(left + 60, 474);
-          ctx.lineTo(left + 87, 432);
-          ctx.lineTo(left + 110, 465);
-          ctx.lineTo(left + 135, 420);
-          ctx.lineTo(right, 414);
-          ctx.lineTo(right, 540);
-          ctx.lineTo(left, 540);
+          ctx.moveTo(left, lipLeft);
+          ctx.lineTo(left + 10, 455);
+          ctx.lineTo(left + 28, 474);
+          ctx.lineTo(left + 46, 462);
+          ctx.lineTo(left + 62, 505);
+          ctx.lineTo(left + 85, 520);
+          ctx.quadraticCurveTo((left + right) / 2, 492, right - 70, 522);
+          ctx.lineTo(right - 43, 495);
+          ctx.lineTo(right - 25, 474);
+          ctx.lineTo(right - 10, 486);
+          ctx.lineTo(right, lipRight);
           ctx.closePath();
+          ctx.fillStyle = bottom;
           ctx.fill();
-          ctx.fillStyle = "#243149";
-          ctx.fillRect(left, 0, Math.max(0, right - left), 416);
+
+          ctx.beginPath();
+          ctx.moveTo(left + 10, 455);
+          ctx.lineTo(left + 28, 474);
+          ctx.lineTo(left + 46, 462);
+          ctx.moveTo(left + 62, 505);
+          ctx.lineTo(left + 85, 520);
+          ctx.moveTo(right - 70, 522);
+          ctx.lineTo(right - 43, 495);
+          ctx.lineTo(right - 25, 474);
+          ctx.lineTo(right - 10, 486);
+          ctx.strokeStyle = "#92a18a";
+          ctx.lineWidth = 5;
+          ctx.lineCap = "round";
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(left + 70, 527);
+          ctx.quadraticCurveTo((left + right) / 2, 508, right - 58, 528);
+          ctx.strokeStyle = "#78bbc1";
+          ctx.lineWidth = 4;
+          ctx.lineCap = "round";
+          ctx.stroke();
+          ctx.lineCap = "butt";
+
+          ctx.beginPath();
+          ctx.moveTo(left, lipLeft);
+          ctx.lineTo(left + 10, 455);
+          ctx.moveTo(right - 10, 486);
+          ctx.lineTo(right, lipRight);
+          ctx.strokeStyle = "#b8e889";
+          ctx.lineWidth = 9;
+          ctx.lineCap = "round";
+          ctx.stroke();
+          ctx.lineCap = "butt";
           continue;
         }
 
@@ -389,7 +425,6 @@
           if (step === 0) ctx.moveTo(worldX - cameraX, y);
           else ctx.lineTo(worldX - cameraX, y);
         }
-        ctx.lineTo(right, section.to);
         ctx.strokeStyle = "#a9e27e";
         ctx.lineWidth = 9;
         ctx.lineCap = "round";
@@ -509,7 +544,7 @@
       ctx.fillText(game.submessage, 480, 301);
       ctx.fillStyle = "#f3ca38";
       ctx.font = "800 17px system-ui, sans-serif";
-      ctx.fillText(game.state === "ready" ? "PRESS SPACE OR TAP JUMP TO START" : "PRESS R OR TAP RESTART", 480, 358);
+      ctx.fillText(game.state === "ready" ? "PRESS D OR TAP PEDAL TO START" : "PRESS R OR TAP RESTART", 480, 358);
     }
 
     function draw() {
@@ -533,7 +568,10 @@
     }
 
     function pressJump() {
-      if (game.state === "ready") startGame();
+      if (game.state === "ready") {
+        startGame();
+        return;
+      }
       jump();
     }
 
