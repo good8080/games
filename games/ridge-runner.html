@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10172a">
+  <title>Ridge Runner — Mountain Bike</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #10172a;
+      color: #f5f7ff;
+      font-synthesis: none;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      padding: 1.25rem;
+      background:
+        radial-gradient(ellipse at 50% 0, #26385a 0, transparent 56%),
+        #10172a;
+    }
+
+    main { width: min(100%, 70rem); margin: 0 auto; }
+
+    .topline {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 1rem;
+      margin: .25rem 0 1rem;
+    }
+
+    .eyebrow {
+      margin: 0 0 .25rem;
+      color: #a7efb0;
+      font-size: .75rem;
+      font-weight: 800;
+      letter-spacing: .15em;
+      text-transform: uppercase;
+    }
+
+    h1 { margin: 0; font-size: clamp(1.7rem, 5vw, 2.7rem); line-height: 1; }
+
+    .course-tag {
+      padding: .5rem .75rem;
+      border: 1px solid #465773;
+      border-radius: 999px;
+      color: #d7e4ff;
+      font-size: .8rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .game-shell {
+      overflow: hidden;
+      border: 1px solid #465773;
+      border-radius: 1rem;
+      background: #8ed3dc;
+      box-shadow: 0 1.5rem 4rem #05091488;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      touch-action: none;
+    }
+
+    .hud {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: .75rem;
+      padding: .8rem 1rem;
+      background: #19243b;
+      border-top: 1px solid #465773;
+    }
+
+    .stat { display: grid; gap: .1rem; text-align: center; }
+    .stat span { color: #aebbd7; font-size: .68rem; font-weight: 750; letter-spacing: .1em; text-transform: uppercase; }
+    .stat strong { font-size: clamp(1rem, 3vw, 1.3rem); font-variant-numeric: tabular-nums; }
+
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: .75rem;
+      padding: .75rem;
+      background: #121b2e;
+      border-top: 1px solid #36445f;
+    }
+
+    button {
+      min-height: 2.8rem;
+      padding: .65rem 1rem;
+      border: 1px solid #64748b;
+      border-radius: .75rem;
+      background: #273550;
+      color: #f5f7ff;
+      font: inherit;
+      font-weight: 750;
+      cursor: pointer;
+      touch-action: none;
+      user-select: none;
+    }
+
+    button:hover { background: #344563; }
+    button:focus-visible { outline: 3px solid #a7efb0; outline-offset: 3px; }
+    button:active, button.is-held { transform: translateY(1px); background: #425779; }
+
+    #jumpButton {
+      border-color: #9ee493;
+      background: #315a46;
+    }
+
+    .instructions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: .5rem 1.5rem;
+      margin: .9rem .15rem 0;
+      color: #c1cce2;
+      font-size: .9rem;
+      line-height: 1.5;
+    }
+
+    .instructions strong { color: #f5f7ff; }
+    .back-link { color: #a7efb0; text-underline-offset: .2em; }
+
+    @media (max-width: 520px) {
+      body { padding: .75rem; }
+      .course-tag { display: none; }
+      .hud { padding: .7rem .4rem; }
+      .controls { gap: .5rem; }
+      button { flex: 1; padding-inline: .5rem; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header class="topline">
+      <div>
+        <p class="eyebrow">A big-air bike adventure</p>
+        <h1>Ridge Runner</h1>
+      </div>
+      <span class="course-tag">3 HUGE GAPS · 1 FINISH LINE</span>
+    </header>
+
+    <section class="game-shell" aria-label="Mountain bike game">
+      <canvas id="game" width="960" height="540" aria-label="Ride a mountain bike across a course with huge gaps"></canvas>
+      <div class="hud" aria-live="polite">
+        <div class="stat"><span>Distance</span><strong id="distance">0 m</strong></div>
+        <div class="stat"><span>Speed</span><strong id="speed">0 km/h</strong></div>
+        <div class="stat"><span>Best airtime</span><strong id="airtime">0.0 s</strong></div>
+      </div>
+      <div class="controls" aria-label="Touch controls">
+        <button id="pedalButton" type="button" aria-label="Pedal faster">PEDAL</button>
+        <button id="jumpButton" type="button">JUMP</button>
+        <button id="restartButton" type="button">RESTART</button>
+      </div>
+    </section>
+
+    <div class="instructions">
+      <span><strong>D</strong> pedal · <strong>Space / Up</strong> jump · <strong>Left / Right</strong> tilt in the air</span>
+      <a class="back-link" href="../index.html">← Back to games</a>
+    </div>
+  </main>
+
+  <script>
+    const canvas = document.querySelector("#game");
+    const ctx = canvas.getContext("2d");
+    const distanceLabel = document.querySelector("#distance");
+    const speedLabel = document.querySelector("#speed");
+    const airtimeLabel = document.querySelector("#airtime");
+    const pedalButton = document.querySelector("#pedalButton");
+    const jumpButton = document.querySelector("#jumpButton");
+    const restartButton = document.querySelector("#restartButton");
+
+    const course = [
+      { start: 0, end: 620, from: 397, to: 375 },
+      { start: 620, end: 790, from: 375, to: 300 },
+      { start: 790, end: 1090, gap: true },
+      { start: 1090, end: 1450, from: 350, to: 385 },
+      { start: 1450, end: 1610, from: 385, to: 295 },
+      { start: 1610, end: 2010, gap: true },
+      { start: 2010, end: 2440, from: 355, to: 400 },
+      { start: 2440, end: 2610, from: 400, to: 278 },
+      { start: 2610, end: 3100, gap: true },
+      { start: 3100, end: 3540, from: 370, to: 338 },
+      { start: 3540, end: 4000, from: 338, to: 385 }
+    ];
+
+    const finishX = 3900;
+    const wheelRadius = 16;
+    const keys = new Set();
+    let game;
+    let previousTime = 0;
+
+    function groundAt(worldX) {
+      const piece = course.find((section) => worldX >= section.start && worldX <= section.end);
+      if (!piece || piece.gap) return null;
+      const progress = (worldX - piece.start) / (piece.end - piece.start);
+      return piece.from + (piece.to - piece.from) * progress;
+    }
+
+    function resetGame() {
+      game = {
+        x: 45,
+        y: groundAt(45) - wheelRadius,
+        verticalSpeed: 0,
+        speed: 175,
+        angle: 0,
+        angularSpeed: 0,
+        state: "ready",
+        airTime: 0,
+        bestAirTime: 0,
+        message: "READY TO RIDE?",
+        submessage: "Pedal into the first giant gap!",
+        particles: []
+      };
+      updateHud();
+      draw();
+    }
+
+    function startGame() {
+      if (game.state === "ready") game.state = "playing";
+      else if (game.state === "crashed" || game.state === "finished") resetGame();
+    }
+
+    function jump() {
+      if (game.state === "ready") startGame();
+      if (game.state !== "playing" || groundAt(game.x) === null) return;
+      const ground = groundAt(game.x);
+      if (game.y + wheelRadius < ground - 3) return;
+      game.verticalSpeed = -480;
+      game.y -= 4;
+      game.airTime = 0;
+    }
+
+    function crash(message) {
+      game.state = "crashed";
+      game.message = "WIPEOUT!";
+      game.submessage = message;
+      game.speed = 0;
+    }
+
+    function update(delta) {
+      if (game.state !== "playing") return;
+      const pedaling = keys.has("d") || keys.has("D") || pedalButton.classList.contains("is-held");
+      const leaningLeft = keys.has("ArrowLeft") || keys.has("a") || keys.has("A");
+      const leaningRight = keys.has("ArrowRight");
+
+      game.speed += (pedaling ? 190 : -32) * delta;
+      game.speed = Math.max(130, Math.min(450, game.speed));
+      const previousX = game.x;
+      game.x += game.speed * delta;
+
+      if (groundAt(game.x) === null) {
+        if (groundAt(previousX) !== null && game.verticalSpeed === 0) {
+          game.verticalSpeed = -480;
+          game.y -= 4;
+        }
+        game.airTime += delta;
+        game.verticalSpeed += 980 * delta;
+        game.y += game.verticalSpeed * delta;
+        game.angularSpeed += ((leaningRight ? 4.5 : 0) - (leaningLeft ? 4.5 : 0)) * delta;
+        game.angularSpeed *= Math.pow(.92, delta * 60);
+        game.angle += game.angularSpeed * delta;
+        if (game.y > 580) crash("That gap was too wide. Restart and try a bigger launch!");
+      } else {
+        const ground = groundAt(game.x);
+        if (game.y + wheelRadius < ground) {
+          game.verticalSpeed += 980 * delta;
+          game.y += game.verticalSpeed * delta;
+          game.airTime += delta;
+          game.angle += game.angularSpeed * delta;
+        } else {
+          game.y = ground - wheelRadius;
+          if (game.verticalSpeed > 650) {
+            crash("The landing was too rough. Try landing with your wheels level.");
+          } else {
+            if (game.airTime > 0.3) game.bestAirTime = Math.max(game.bestAirTime, game.airTime);
+            game.airTime = 0;
+            game.verticalSpeed = 0;
+            game.angularSpeed = 0;
+            game.angle *= .45;
+          }
+        }
+      }
+
+      if (Math.abs(game.angle) > 2.3) crash("You rotated too far. Keep the bike upright while you land!");
+      if (game.x >= finishX && game.state === "playing") {
+        game.state = "finished";
+        game.message = "YOU MADE IT!";
+        game.submessage = `Best airtime: ${game.bestAirTime.toFixed(1)} seconds. What a ride!`;
+        game.speed = 0;
+      }
+      updateHud();
+    }
+
+    function updateHud() {
+      distanceLabel.textContent = `${Math.max(0, Math.min(finishX, Math.floor((game.x - 45) / 10) * 10))} m`;
+      speedLabel.textContent = `${Math.round(game.speed * .36)} km/h`;
+      airtimeLabel.textContent = `${game.bestAirTime.toFixed(1)} s`;
+    }
+
+    function drawBackground(cameraX) {
+      const sky = ctx.createLinearGradient(0, 0, 0, 540);
+      sky.addColorStop(0, "#83d4df");
+      sky.addColorStop(.68, "#d4edcf");
+      sky.addColorStop(1, "#e5f0d1");
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, 960, 540);
+
+      ctx.fillStyle = "#fff4c2";
+      ctx.beginPath();
+      ctx.arc(790, 105, 42, 0, Math.PI * 2);
+      ctx.fill();
+
+      drawMountainLayer(cameraX, .12, 290, "#a9c8c0", 105, 175);
+      drawMountainLayer(cameraX, .24, 350, "#6f9e94", 75, 120);
+      drawMountainLayer(cameraX, .42, 420, "#467c68", 55, 85);
+    }
+
+    function drawMountainLayer(cameraX, parallax, baseline, color, spacing, height) {
+      const offset = (cameraX * parallax) % spacing;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(0, 540);
+      for (let x = -spacing - offset; x <= 1000; x += spacing) {
+        const peak = baseline - height * (.55 + .45 * Math.sin((x + offset) * .039));
+        ctx.lineTo(x, baseline);
+        ctx.lineTo(x + spacing * .5, peak);
+        ctx.lineTo(x + spacing, baseline);
+      }
+      ctx.lineTo(1000, 540);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    function drawCourse(cameraX) {
+      for (const section of course) {
+        const left = section.start - cameraX;
+        const right = section.end - cameraX;
+        if (right < -50 || left > 1010) continue;
+        if (section.gap) {
+          ctx.fillStyle = "#273a32";
+          ctx.beginPath();
+          ctx.moveTo(left, 416);
+          ctx.lineTo(left + 15, 454);
+          ctx.lineTo(left + 35, 428);
+          ctx.lineTo(left + 60, 474);
+          ctx.lineTo(left + 87, 432);
+          ctx.lineTo(left + 110, 465);
+          ctx.lineTo(left + 135, 420);
+          ctx.lineTo(right, 414);
+          ctx.lineTo(right, 540);
+          ctx.lineTo(left, 540);
+          ctx.closePath();
+          ctx.fill();
+          ctx.fillStyle = "#243149";
+          ctx.fillRect(left, 0, Math.max(0, right - left), 416);
+          continue;
+        }
+
+        const steps = Math.max(2, Math.ceil((section.end - section.start) / 9));
+        ctx.beginPath();
+        ctx.moveTo(left, 540);
+        for (let step = 0; step <= steps; step += 1) {
+          const progress = step / steps;
+          const worldX = section.start + (section.end - section.start) * progress;
+          const ripple = Math.sin(worldX * .025) * 3 + Math.sin(worldX * .009) * 5;
+          const y = section.from + (section.to - section.from) * progress + ripple;
+          ctx.lineTo(worldX - cameraX, y);
+        }
+        ctx.lineTo(right, 540);
+        ctx.closePath();
+        ctx.fillStyle = "#367354";
+        ctx.fill();
+        ctx.beginPath();
+        for (let step = 0; step <= steps; step += 1) {
+          const progress = step / steps;
+          const worldX = section.start + (section.end - section.start) * progress;
+          const ripple = Math.sin(worldX * .025) * 3 + Math.sin(worldX * .009) * 5;
+          const y = section.from + (section.to - section.from) * progress + ripple;
+          if (step === 0) ctx.moveTo(worldX - cameraX, y);
+          else ctx.lineTo(worldX - cameraX, y);
+        }
+        ctx.lineTo(right, section.to);
+        ctx.strokeStyle = "#a9e27e";
+        ctx.lineWidth = 9;
+        ctx.lineCap = "round";
+        ctx.stroke();
+        ctx.lineCap = "butt";
+      }
+    }
+
+    function drawBike() {
+      const riderX = 310;
+      const groundHeight = groundAt(game.x);
+      const cameraY = Math.max(-35, Math.min(65, (game.y + 35 - 350) * .18));
+      const riderY = game.y - cameraY;
+      ctx.save();
+      ctx.translate(riderX, riderY);
+      ctx.rotate(game.angle);
+
+      const backWheel = { x: -27, y: 0 };
+      const frontWheel = { x: 28, y: 0 };
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = "#182437";
+      for (const wheel of [backWheel, frontWheel]) {
+        ctx.beginPath();
+        ctx.arc(wheel.x, wheel.y, wheelRadius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(wheel.x - 11, 0);
+        ctx.lineTo(wheel.x + 11, 0);
+        ctx.moveTo(wheel.x, -11);
+        ctx.lineTo(wheel.x, 11);
+        ctx.strokeStyle = "#607080";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.strokeStyle = "#182437";
+        ctx.lineWidth = 4;
+      }
+
+      ctx.strokeStyle = "#f36c55";
+      ctx.lineWidth = 5;
+      ctx.lineJoin = "round";
+      ctx.beginPath();
+      ctx.moveTo(backWheel.x, 0);
+      ctx.lineTo(-8, -24);
+      ctx.lineTo(frontWheel.x, 0);
+      ctx.lineTo(-12, 0);
+      ctx.lineTo(backWheel.x, 0);
+      ctx.moveTo(-8, -24);
+      ctx.lineTo(-12, 0);
+      ctx.stroke();
+
+      ctx.strokeStyle = "#182437";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(frontWheel.x, 0);
+      ctx.lineTo(38, -25);
+      ctx.lineTo(48, -26);
+      ctx.moveTo(38, -25);
+      ctx.lineTo(30, -30);
+      ctx.moveTo(-12, -24);
+      ctx.lineTo(-2, -28);
+      ctx.stroke();
+
+      ctx.strokeStyle = "#f5c29a";
+      ctx.lineWidth = 7;
+      ctx.beginPath();
+      ctx.moveTo(-8, -27);
+      ctx.lineTo(-1, -49);
+      ctx.lineTo(17, -34);
+      ctx.lineTo(31, -29);
+      ctx.moveTo(-1, -49);
+      ctx.lineTo(4, -26);
+      ctx.lineTo(-12, -23);
+      ctx.stroke();
+      ctx.fillStyle = "#f3ca38";
+      ctx.beginPath();
+      ctx.arc(0, -57, 9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#e4553f";
+      ctx.beginPath();
+      ctx.ellipse(-1, -50, 12, 5, -.2, Math.PI, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      if (groundHeight === null && game.state === "playing" && game.airTime > .4) {
+        ctx.fillStyle = "#fff4c2";
+        ctx.font = "800 16px system-ui, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(`${game.airTime.toFixed(1)}s AIR!`, riderX, riderY - 76);
+      }
+    }
+
+    function drawFinish(cameraX) {
+      const screenX = finishX - cameraX;
+      if (screenX < -30 || screenX > 1000) return;
+      const ground = groundAt(finishX) || 380;
+      ctx.fillStyle = "#f3ca38";
+      ctx.fillRect(screenX, ground - 120, 8, 120);
+      ctx.fillRect(screenX, ground - 120, 66, 34);
+      ctx.fillStyle = "#15223a";
+      ctx.font = "800 14px system-ui, sans-serif";
+      ctx.fillText("FINISH", screenX + 8, ground - 98);
+    }
+
+    function drawOverlay() {
+      if (game.state === "playing") return;
+      ctx.fillStyle = "#0e172acc";
+      ctx.fillRect(0, 0, 960, 540);
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#a7efb0";
+      ctx.font = "800 15px system-ui, sans-serif";
+      ctx.fillText(game.state === "finished" ? "COURSE COMPLETE" : game.state === "crashed" ? "TRY AGAIN" : "MOUNTAIN BIKE · BIG AIR", 480, 203);
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "900 48px system-ui, sans-serif";
+      ctx.fillText(game.message, 480, 264);
+      ctx.fillStyle = "#d3dcef";
+      ctx.font = "500 18px system-ui, sans-serif";
+      ctx.fillText(game.submessage, 480, 301);
+      ctx.fillStyle = "#f3ca38";
+      ctx.font = "800 17px system-ui, sans-serif";
+      ctx.fillText(game.state === "ready" ? "PRESS SPACE OR TAP JUMP TO START" : "PRESS R OR TAP RESTART", 480, 358);
+    }
+
+    function draw() {
+      const cameraX = Math.max(0, game.x - 310);
+      ctx.save();
+      drawBackground(cameraX);
+      ctx.translate(0, -Math.max(-35, Math.min(65, (game.y + 35 - 350) * .18)));
+      drawCourse(cameraX);
+      drawFinish(cameraX);
+      ctx.restore();
+      drawBike();
+      drawOverlay();
+    }
+
+    function frame(time) {
+      const delta = Math.min((time - previousTime) / 1000 || 0, .033);
+      previousTime = time;
+      update(delta);
+      draw();
+      requestAnimationFrame(frame);
+    }
+
+    function pressJump() {
+      if (game.state === "ready") startGame();
+      jump();
+    }
+
+    window.addEventListener("keydown", (event) => {
+      if (["ArrowRight", "ArrowLeft", "ArrowUp", "ArrowDown", " "].includes(event.key)) event.preventDefault();
+      keys.add(event.key);
+      if (event.key === " " || event.key === "ArrowUp" || event.key === "w" || event.key === "W") pressJump();
+      if (event.key === "r" || event.key === "R") {
+        resetGame();
+        startGame();
+      }
+      if (game.state === "ready" && (event.key === "ArrowRight" || event.key === "d" || event.key === "D")) startGame();
+    });
+
+    window.addEventListener("keyup", (event) => keys.delete(event.key));
+    window.addEventListener("blur", () => keys.clear());
+
+    pedalButton.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      pedalButton.classList.add("is-held");
+      if (game.state === "ready") startGame();
+      pedalButton.setPointerCapture(event.pointerId);
+    });
+    for (const eventName of ["pointerup", "pointercancel", "lostpointercapture"]) {
+      pedalButton.addEventListener(eventName, () => pedalButton.classList.remove("is-held"));
+    }
+    jumpButton.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      pressJump();
+    });
+    restartButton.addEventListener("click", () => {
+      resetGame();
+      startGame();
+    });
+
+    resetGame();
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
